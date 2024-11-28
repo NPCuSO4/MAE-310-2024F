@@ -82,17 +82,39 @@ F(ID(IEN(1,1))) = F(ID(IEN(1,1))) + h;
 
 % Solve Kd = F equation
 d_temp = K \ F;
-
 disp = [d_temp; g];
 
+
+% Calculate relative error
+E_1 = 0;
+E_2 = 0;
+
+n_intE = 20;
+[xi, weight] = Gauss(n_intE, 0, 1);
+int_A = 0;
+int_B = 1./11;
+int_C = 0;
+int_D = 25./9;
+
+% quadrature loop
+for ee = 1 : n_el
+  u_ele = disp( IEN(ee, :) );
+  for qua = 1 : n_intE
+    u_h = 0;
+    u_h1 = 0;
+    for aa = 1 : n_en
+      u_h = u_h + u_ele(aa) * PolyShape(pp, aa, xi(qua)*2-1, 0);
+      u_h1 = u_h1 + u_ele(aa) * 2 * PolyShape(pp, aa, xi(qua)*2-1, 1);
+    end
+    int_A = int_A + weight(qua) / 2 * (u_h-xi(qua)^5)^2;
+    int_C = int_C + weight(qua) * (u_h1-5*xi(qua)^4)^2;
+  end
+end
+E_1 = (int_A / int_B)^0.5;
+E_2 = (int_C / int_D)^0.5;
+
+
 % Postprocessing: visualization
-%plot(x_coor, disp, '--r','LineWidth',3);
-
-%x_sam = 0 : 0.01 : 1;
-%y_sam = x_sam.^5;
-%hold on;
-%plot(x_sam, y_sam, '-k', 'LineWidth', 3);
-
 n_sam = 20;
 xi_sam = -1 : (2/n_sam) : 1;
 
