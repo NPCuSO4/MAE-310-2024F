@@ -89,8 +89,8 @@ disp = [d_temp; g];
 E_1 = 0;
 E_2 = 0;
 
-n_intE = 20;
-[xi, weight] = Gauss(n_intE, 0, 1);
+n_intE = 3;
+[xi, weight] = Gauss(n_intE, -1, 1);
 int_A = 0;
 int_B = 1./11;
 int_C = 0;
@@ -98,20 +98,25 @@ int_D = 25./9;
 
 % quadrature loop
 for ee = 1 : n_el
+  x_ele = x_coor( IEN(ee, :) );
   u_ele = disp( IEN(ee, :) );
   for qua = 1 : n_intE
+    x_l = 0;
+    x_l1 = 0;
     u_h = 0;
     u_h1 = 0;
     for aa = 1 : n_en
-      u_h = u_h + u_ele(aa) * PolyShape(pp, aa, xi(qua)*2-1, 0);
-      u_h1 = u_h1 + u_ele(aa) * 2 * PolyShape(pp, aa, xi(qua)*2-1, 1);
+      x_l = x_l + x_ele(aa) * PolyShape(pp, aa, xi(qua), 0);
+      x_l1 = x_l1 + x_ele(aa) * PolyShape(pp, aa, xi(qua), 1);
+      u_h = u_h + u_ele(aa) * PolyShape(pp, aa, xi(qua), 0);
+      u_h1 = u_h1 + u_ele(aa) * PolyShape(pp, aa, xi(qua), 1);
     end
-    int_A = int_A + weight(qua) / 2 * (u_h-xi(qua)^5)^2;
-    int_C = int_C + weight(qua) * (u_h1-5*xi(qua)^4)^2;
+    int_A = int_A + weight(qua) * (u_h - x_l^5)^2 * x_l1;
+    int_C = int_C + weight(qua) * (u_h1/x_l1 - 5*x_l^4)^2* x_l1;
   end
 end
-E_1 = (int_A / int_B)^0.5;
-E_2 = (int_C / int_D)^0.5;
+E_1 = (int_A / int_B)^0.5
+E_2 = (int_C / int_D)^0.5
 
 
 % Postprocessing: visualization
