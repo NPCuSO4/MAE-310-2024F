@@ -6,12 +6,12 @@ g = 1.0;           % u    = g  at x = 1
 h = 0.0;           % -u,x = h  at x = 0
 
 % Setup the mesh
-pp   = 2;              % polynomial degree
+pp   = 3;              % polynomial degree
 n_en = pp + 1;         % number of element or local nodes
 n_el = 2;              % number of elements
 n_np = n_el * pp + 1;  % number of nodal points
 n_eq = n_np - 1;       % number of equations
-n_int = 10;
+n_int = 3;
 
 hh = 1.0 / (n_np - 1); % space between two adjacent nodes
 x_coor = 0 : hh : 1;   % nodal coordinates for equally spaced nodes
@@ -86,25 +86,22 @@ disp = [d_temp; g];
 
 
 % Calculate relative error
-E_1 = 0;
-E_2 = 0;
-
-n_intE = 3;
+n_intE = 3; % quadrature points for error term
 [xi, weight] = Gauss(n_intE, -1, 1);
-int_A = 0;
-int_B = 1./11;
-int_C = 0;
-int_D = 25./9;
+int_A = 0;      % numerator of e_L2
+int_B = 1./11;  % denominator of e_L2
+int_C = 0;      % numerator of e_H1
+int_D = 25./9;  % denominator of e_H1
 
 % quadrature loop
 for ee = 1 : n_el
   x_ele = x_coor( IEN(ee, :) );
   u_ele = disp( IEN(ee, :) );
   for qua = 1 : n_intE
-    x_l = 0;
-    x_l1 = 0;
-    u_h = 0;
-    u_h1 = 0;
+    x_l = 0;    % x(x_i)
+    x_l1 = 0;   % dx/dx_i
+    u_h = 0;    % u^h
+    u_h1 = 0;   % du^h/dx_i
     for aa = 1 : n_en
       x_l = x_l + x_ele(aa) * PolyShape(pp, aa, xi(qua), 0);
       x_l1 = x_l1 + x_ele(aa) * PolyShape(pp, aa, xi(qua), 1);
@@ -115,8 +112,8 @@ for ee = 1 : n_el
     int_C = int_C + weight(qua) * (u_h1/x_l1 - 5*x_l^4)^2* x_l1;
   end
 end
-E_1 = (int_A / int_B)^0.5
-E_2 = (int_C / int_D)^0.5
+E_L2 = (int_A / int_B)^0.5
+E_H1 = (int_C / int_D)^0.5
 
 
 % Postprocessing: visualization
