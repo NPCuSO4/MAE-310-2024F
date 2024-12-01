@@ -82,6 +82,9 @@ F(ID(IEN(1,1))) = F(ID(IEN(1,1))) + h;
 
 % Solve Kd = F equation
 d_temp = K \ F;
+% [Bonus] Use gmres to solve KD = F
+%d_temp = gmres(K,F,10000,0.01,10000);
+
 disp = [d_temp; g];
 
 
