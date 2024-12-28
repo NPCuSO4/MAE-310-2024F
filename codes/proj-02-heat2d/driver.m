@@ -1,5 +1,7 @@
 clear all; clc;
 
+mesh_type = 0; % 0 for triangle, 1 for quadrilateral
+
 kappa = 1.0; % conductivity
 
 % exact solution
@@ -10,16 +12,21 @@ exact_y = @(x,y) x*(1-x)*(1-2*y);
 f = @(x,y) 2.0*kappa*x*(1-x) + 2.0*kappa*y*(1-y); % source term
 
 % quadrature rule
-n_int_xi  = 3;
-n_int_eta = 3;
-n_int     = n_int_xi * n_int_eta;
-[xi, eta, weight] = Gauss2D(n_int_xi, n_int_eta);
+if mesh_type == 1
+    n_int_xi  = 3;
+    n_int_eta = 3;
+    n_int     = n_int_xi * n_int_eta;
+    [xi, eta, weight] = Gauss2D(n_int_xi, n_int_eta);
+else
+    n_int = 3;
+    [xi, eta, weight] = GaussTri(n_int);
+end
 
 % mesh generation
-n_en   = 4;               % number of nodes in an element
+n_en   = 3 + mesh_type;    % number of nodes in an element
 n_el_x = 60;               % number of elements in x-dir
 n_el_y = 60;               % number of elements in y-dir
-n_el   = n_el_x * n_el_y; % total number of elements
+n_el   = n_el_x * n_el_y * (2 - mesh_type);  % total number of elements
 
 n_np_x = n_el_x + 1;      % number of nodal points in x-dir
 n_np_y = n_el_y + 1;      % number of nodal points in y-dir
@@ -40,16 +47,33 @@ for ny = 1 : n_np_y
   end
 end
 
-% IEN array
-IEN = zeros(n_el, n_en);
-for ex = 1 : n_el_x
-  for ey = 1 : n_el_y
-    ee = (ey-1) * n_el_x + ex; % element index
-    IEN(ee, 1) = (ey-1) * n_np_x + ex;
-    IEN(ee, 2) = (ey-1) * n_np_x + ex + 1;
-    IEN(ee, 3) =  ey    * n_np_x + ex + 1;
-    IEN(ee, 4) =  ey    * n_np_x + ex;
-  end
+if mesh_type == 1
+    % IEN array
+    IEN = zeros(n_el, n_en);
+    for ex = 1 : n_el_x
+      for ey = 1 : n_el_y
+        ee = (ey-1) * n_el_x + ex; % element index
+        IEN(ee, 1) = (ey-1) * n_np_x + ex;
+        IEN(ee, 2) = (ey-1) * n_np_x + ex + 1;
+        IEN(ee, 3) =  ey    * n_np_x + ex + 1;
+        IEN(ee, 4) =  ey    * n_np_x + ex;
+      end
+    end
+else
+    % IEN array
+    IEN = zeros(n_el, n_en);
+    for ex = 1 : n_el_x
+      for ey = 1 : n_el_y
+        e1 = ((ey-1) * n_el_x + ex)*2 - 1;
+        e2 = ((ey-1) * n_el_x + ex)*2;
+        IEN(e1, 1) = (ey-1) * n_np_x + ex;
+        IEN(e1, 2) = (ey-1) * n_np_x + ex + 1;
+        IEN(e1, 3) =  ey    * n_np_x + ex;
+        IEN(e2, 1) =  ey    * n_np_x + ex + 1;
+        IEN(e2, 2) =  ey    * n_np_x + ex;
+        IEN(e2, 3) = (ey-1) * n_np_x + ex + 1;
+      end
+    end
 end
 
 % ID array
@@ -62,7 +86,6 @@ for ny = 2 : n_np_y - 1
     ID(index) = counter;  
   end
 end
-
 n_eq = counter;
 
 LM = ID(IEN);
@@ -83,35 +106,68 @@ for ee = 1 : n_el
     x_l = 0.0; y_l = 0.0;
     dx_dxi = 0.0; dx_deta = 0.0;
     dy_dxi = 0.0; dy_deta = 0.0;
-    for aa = 1 : n_en
-      x_l = x_l + x_ele(aa) * Quad(aa, xi(ll), eta(ll));
-      y_l = y_l + y_ele(aa) * Quad(aa, xi(ll), eta(ll));    
-      [Na_xi, Na_eta] = Quad_grad(aa, xi(ll), eta(ll));
-      dx_dxi  = dx_dxi  + x_ele(aa) * Na_xi;
-      dx_deta = dx_deta + x_ele(aa) * Na_eta;
-      dy_dxi  = dy_dxi  + y_ele(aa) * Na_xi;
-      dy_deta = dy_deta + y_ele(aa) * Na_eta;
+    if mesh_type == 1
+        for aa = 1 : n_en
+          x_l = x_l + x_ele(aa) * Quad(aa, xi(ll), eta(ll));
+          y_l = y_l + y_ele(aa) * Quad(aa, xi(ll), eta(ll));    
+          [Na_xi, Na_eta] = Quad_grad(aa, xi(ll), eta(ll));
+          dx_dxi  = dx_dxi  + x_ele(aa) * Na_xi;
+          dx_deta = dx_deta + x_ele(aa) * Na_eta;
+          dy_dxi  = dy_dxi  + y_ele(aa) * Na_xi;
+          dy_deta = dy_deta + y_ele(aa) * Na_eta;
+        end
+        
+        detJ = dx_dxi * dy_deta - dx_deta * dy_dxi;
+        
+        for aa = 1 : n_en
+          Na = Quad(aa, xi(ll), eta(ll));
+          [Na_xi, Na_eta] = Quad_grad(aa, xi(ll), eta(ll));
+          Na_x = (Na_xi * dy_deta - Na_eta * dy_dxi) / detJ;
+          Na_y = (-Na_xi * dx_deta + Na_eta * dx_dxi) / detJ;
+          
+          f_ele(aa) = f_ele(aa) + weight(ll) * detJ * f(x_l, y_l) * Na;
+          
+          for bb = 1 : n_en
+            Nb = Quad(bb, xi(ll), eta(ll));
+            [Nb_xi, Nb_eta] = Quad_grad(bb, xi(ll), eta(ll));
+            Nb_x = (Nb_xi * dy_deta - Nb_eta * dy_dxi) / detJ;
+            Nb_y = (-Nb_xi * dx_deta + Nb_eta * dx_dxi) / detJ;
+            
+            k_ele(aa, bb) = k_ele(aa,bb) + weight(ll) * detJ * kappa * (Na_x * Nb_x + Na_y * Nb_y);
+          end % end of bb loop
+        end % end of aa loop
+    else
+        for aa = 1 : n_en
+          x_l = x_l + x_ele(aa) * Tri(aa, xi(ll), eta(ll));
+          y_l = y_l + y_ele(aa) * Tri(aa, xi(ll), eta(ll));    
+          [Na_xi, Na_eta] = Tri_grad(aa, xi(ll), eta(ll));
+          dx_dxi  = dx_dxi  + x_ele(aa) * Na_xi;
+          dx_deta = dx_deta + x_ele(aa) * Na_eta;
+          dy_dxi  = dy_dxi  + y_ele(aa) * Na_xi;
+          dy_deta = dy_deta + y_ele(aa) * Na_eta;
+        end
+        
+        detJ = dx_dxi * dy_deta - dx_deta * dy_dxi;
+        
+        for aa = 1 : n_en
+          Na = Tri(aa, xi(ll), eta(ll));
+          [Na_xi, Na_eta] = Tri_grad(aa, xi(ll), eta(ll));
+          Na_x = (Na_xi * dy_deta - Na_eta * dy_dxi) / detJ;
+          Na_y = (-Na_xi * dx_deta + Na_eta * dx_dxi) / detJ;
+          
+          f_ele(aa) = f_ele(aa) + weight(ll) * detJ * f(x_l, y_l) * Na;
+          
+          for bb = 1 : n_en
+            Nb = Tri(bb, xi(ll), eta(ll));
+            [Nb_xi, Nb_eta] = Tri_grad(bb, xi(ll), eta(ll));
+            Nb_x = (Nb_xi * dy_deta - Nb_eta * dy_dxi) / detJ;
+            Nb_y = (-Nb_xi * dx_deta + Nb_eta * dx_dxi) / detJ;
+            
+            k_ele(aa, bb) = k_ele(aa,bb) + weight(ll) * detJ * kappa * (Na_x * Nb_x + Na_y * Nb_y);
+          end % end of bb loop
+        end % end of aa loop
     end
     
-    detJ = dx_dxi * dy_deta - dx_deta * dy_dxi;
-    
-    for aa = 1 : n_en
-      Na = Quad(aa, xi(ll), eta(ll));
-      [Na_xi, Na_eta] = Quad_grad(aa, xi(ll), eta(ll));
-      Na_x = (Na_xi * dy_deta - Na_eta * dy_dxi) / detJ;
-      Na_y = (-Na_xi * dx_deta + Na_eta * dx_dxi) / detJ;
-      
-      f_ele(aa) = f_ele(aa) + weight(ll) * detJ * f(x_l, y_l) * Na;
-      
-      for bb = 1 : n_en
-        Nb = Quad(bb, xi(ll), eta(ll));
-        [Nb_xi, Nb_eta] = Quad_grad(bb, xi(ll), eta(ll));
-        Nb_x = (Nb_xi * dy_deta - Nb_eta * dy_dxi) / detJ;
-        Nb_y = (-Nb_xi * dx_deta + Nb_eta * dx_dxi) / detJ;
-        
-        k_ele(aa, bb) = k_ele(aa,bb) + weight(ll) * detJ * kappa * (Na_x * Nb_x + Na_y * Nb_y);
-      end % end of bb loop
-    end % end of aa loop
   end % end of quadrature loop
  
   for aa = 1 : n_en
