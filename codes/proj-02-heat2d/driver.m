@@ -18,7 +18,8 @@ if mesh_type == 1
     n_int     = n_int_xi * n_int_eta;
     [xi, eta, weight] = Gauss2D(n_int_xi, n_int_eta);
 else
-    n_int = 3;
+    % quadrature points for triangular elements
+    n_int = 3;  % only able to do 1,3,4 points quadrature
     [xi, eta, weight] = GaussTri(n_int);
 end
 
@@ -64,6 +65,7 @@ else
     IEN = zeros(n_el, n_en);
     for ex = 1 : n_el_x
       for ey = 1 : n_el_y
+        % split the square into two triangles
         e1 = ((ey-1) * n_el_x + ex)*2 - 1;
         e2 = ((ey-1) * n_el_x + ex)*2;
         IEN(e1, 1) = (ey-1) * n_np_x + ex;
@@ -137,6 +139,7 @@ for ee = 1 : n_el
           end % end of bb loop
         end % end of aa loop
     else
+        % change the shape function for triangular elements
         for aa = 1 : n_en
           x_l = x_l + x_ele(aa) * Tri(aa, xi(ll), eta(ll));
           y_l = y_l + y_ele(aa) * Tri(aa, xi(ll), eta(ll));    
@@ -222,7 +225,7 @@ for ee = 1 : n_el
     % set quadrature points for error term
     n_int_xi  = 5;
     n_int_eta = 5;
-    n_int     = n_int_xi * n_int_eta;
+    n_int = n_int_xi * n_int_eta;
     [xi, eta, weight] = Gauss2D(n_int_xi, n_int_eta);
     for ll = 1 : n_int
       x_l = 0.0; y_l = 0.0; u_l = 0.0;
@@ -242,12 +245,13 @@ for ee = 1 : n_el
         du_deta = du_deta + u_ele(aa) * Na_eta;
       end
       detJ = dx_dxi * dy_deta - dx_deta * dy_dxi;
-      E_0 = E_0 + weight(ll) * (u_l - exact(x_l, y_l))^2 * detJ;
-      U_0 = U_0 + weight(ll) * exact(x_l, y_l)^2 * detJ;
-      E_1 = E_1 + weight(ll) * ((du_dxi/dx_dxi - exact_x(x_l, y_l) )^2 + (du_deta/dy_deta - exact_y(x_l, y_l) )^2) * detJ;
-      U_1 = U_1 + weight(ll) * (exact_x(x_l, y_l)^2 + exact_y(x_l, y_l)^2) * detJ;
+      E_0 = E_0 + weight(ll) * (u_l - exact(x_l, y_l))^2 * detJ;    % ||e_0||
+      %U_0 = U_0 + weight(ll) * exact(x_l, y_l)^2 * detJ;    % in case of calculate e_L2
+      E_1 = E_1 + weight(ll) * ((du_dxi/dx_dxi - exact_x(x_l, y_l) )^2 + (du_deta/dy_deta - exact_y(x_l, y_l) )^2) * detJ;  % ||e_1||
+      %U_1 = U_1 + weight(ll) * (exact_x(x_l, y_l)^2 + exact_y(x_l, y_l)^2) * detJ;  % in case of calculate e_H1
     end
   else
+    % set quadrature points for error term
     n_int = 4;
     [xi, eta, weight] = GaussTri(n_int);
     for ll = 1 : n_int
@@ -268,17 +272,15 @@ for ee = 1 : n_el
         du_deta = du_deta + u_ele(aa) * Na_eta;
       end
       detJ = dx_dxi * dy_deta - dx_deta * dy_dxi;
-      E_0 = E_0 + weight(ll) * (u_l - exact(x_l, y_l))^2 * detJ;
-      U_0 = U_0 + weight(ll) * exact(x_l, y_l)^2 * detJ;
-      E_1 = E_1 + weight(ll) * ((du_dxi/dx_dxi - exact_x(x_l, y_l) )^2 + (du_deta/dy_deta - exact_y(x_l, y_l) )^2) * detJ;
-      U_1 = U_1 + weight(ll) * (exact_x(x_l, y_l)^2 + exact_y(x_l, y_l)^2) * detJ;
+      E_0 = E_0 + weight(ll) * (u_l - exact(x_l, y_l))^2 * detJ;    % ||e_0||
+      %U_0 = U_0 + weight(ll) * exact(x_l, y_l)^2 * detJ;   % in case of calculate e_L2
+      E_1 = E_1 + weight(ll) * ((du_dxi/dx_dxi - exact_x(x_l, y_l) )^2 + (du_deta/dy_deta - exact_y(x_l, y_l) )^2) * detJ;  % ||e_1||
+      %U_1 = U_1 + weight(ll) * (exact_x(x_l, y_l)^2 + exact_y(x_l, y_l)^2) * detJ;  % in case of calculate e_H1
     end
   end
 end
-E_0 = E_0^0.5; U_0 = U_0^0.5;
-E_1 = E_1^0.5; U_1 = U_1^0.5;
-E_L2 = E_0 / U_0
-E_H1 = E_1 / U_1
-
+E_1 = E_0 + E_1;
+E_0 = E_0^0.5
+E_1 = E_1^0.5
 
 % EOF

@@ -1,5 +1,7 @@
 function [xi, eta, w] = GaussTri(NI)
-
+% Gaussian quadrature for triangle
+% Return the quadrature points & weights on (0,1)
+% Can only do 1,3,4 points quadrature
 if NI == 1
     xi  = 1/3;
     eta = 1/3;
