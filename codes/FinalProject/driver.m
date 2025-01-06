@@ -11,8 +11,7 @@ D  = E/(1 - nu^2) * D;
 exact_u = @(x,y) -x^2;
 exact_v = @(x,y) 0;
 
-f_x = @(x,y) 2*E/(nu^2-1); % source term
-f_y = @(x,y) 0; 
+f = @(x, y) [2*E/(nu^2-1); 0]; % fx and fy
 
 % quadrature rule
 n_int_xi  = 3;
@@ -92,9 +91,8 @@ for ee = 1 : n_el
   x_ele = x_coor( IEN(ee, 1:n_en) );
   y_ele = y_coor( IEN(ee, 1:n_en) );
   
-  k_ele = zeros(n_en, n_en); % element stiffness matrix
-  f_ele1 = zeros(n_en, 1);    % element load vector
-  f_ele2 = zeros(n_en, 1);    % element load vector
+  k_ele = zeros(n_en*2, n_en*2); % element stiffness matrix
+  f_ele = zeros(n_en*2, 1);    % element load vector
   
   for ll = 1 : n_int
     x_l = 0.0; y_l = 0.0;
@@ -118,65 +116,59 @@ for ee = 1 : n_el
       Na_x = (Na_xi * dy_deta - Na_eta * dy_dxi) / detJ;
       Na_y = (-Na_xi * dx_deta + Na_eta * dx_dxi) / detJ;
       
-      f_ele1(aa) = f_ele1(aa) + weight(ll) * f_x(x_l, y_l) * Na;
-      f_ele2(aa) = f_ele2(aa) + weight(ll) * f_y(x_l, y_l) * Na;
-      
       Ba = [Na_x, 0, Na_y; 0, Na_y, Na_x;];
+      for ii = 1 : 2
+          pp = 2*(aa-1)+ii;
+          tmp = f(x_l, y_l);
+          f_ele(pp) = f_ele(pp) + weight(ll) * tmp(ii) * Na;
 
-      for bb = 1 : n_en
-        Nb = Quad(bb, xi(ll), eta(ll));
-        [Nb_xi, Nb_eta] = Quad_grad(bb, xi(ll), eta(ll));
-        Nb_x = (Nb_xi * dy_deta - Nb_eta * dy_dxi) / detJ;
-        Nb_y = (-Nb_xi * dx_deta + Nb_eta * dx_dxi) / detJ;
-        
-        Bb = [Nb_x, 0; 0, Nb_y; Nb_y, Nb_x;];
-        
-        ed = [1,0; 0,1;];
-        for ii = 1 : 2
-           for jj = 1 : 2
-               %pp = 2*(aa-1)+ii;
-               %qq = 2*(bb-1)+jj;
-               k_ele(aa, bb) = k_ele(aa, bb) + weight(ll) * ed(ii,:) * Ba * D * Bb * ed(:,jj);
-           end
-        end
-        
-      end % end of bb loop
+          for bb = 1 : n_en
+            Nb = Quad(bb, xi(ll), eta(ll));
+            [Nb_xi, Nb_eta] = Quad_grad(bb, xi(ll), eta(ll));
+            Nb_x = (Nb_xi * dy_deta - Nb_eta * dy_dxi) / detJ;
+            Nb_y = (-Nb_xi * dx_deta + Nb_eta * dx_dxi) / detJ;
+            
+            Bb = [Nb_x, 0; 0, Nb_y; Nb_y, Nb_x;];
+            
+            ed = [1,0; 0,1;];
+            for jj = 1 : 2
+               qq = 2*(bb-1)+jj;
+               k_ele(pp, qq) = k_ele(pp, qq) + weight(ll) * ed(ii, :) * Ba * D * Bb * ed(:, jj);
+            end
+         
+          end % end of bb loop
+      end
     end % end of aa loop
     
   end % end of quadrature loop
- 
+
   for aa = 1 : n_en
-    PP = LM(1, ee, aa);
-    if PP > 0
-      F(PP) = F(PP) + f_ele1(aa);
-      
+    for ii = 1 : 2
+      pp = 2*(aa-1)+ii;
+      PP = LM(ii, ee, aa);
+      if PP == 0
+        continue;
+      end
+      F(PP) = F(PP) + f_ele(pp);
+
       for bb = 1 : n_en
-        QQ = LM(1, ee, bb);
-        if QQ > 0
-          K(PP, QQ) = K(PP, QQ) + k_ele(aa, bb);
-        else
-          % modify F with the boundary data
-          % here we do nothing because the boundary data g is zero or
-          % homogeneous
+        for jj = 1 : 2
+          qq = 2*(bb-1)+jj;
+          QQ = LM(jj, ee, bb);
+          if QQ > 0
+            K(PP, QQ) = K(PP, QQ) + k_ele(pp, qq);
+          else
+            % modify F with the boundary data
+            % here we do nothing because the boundary data g is zero or
+            % homogeneous
+          end
+
         end
-      end  
-    end
-    PP = LM(2, ee, aa);
-    if PP > 0
-      F(PP) = F(PP) + f_ele2(aa);
-      
-      for bb = 1 : n_en
-        QQ = LM(2, ee, bb);
-        if QQ > 0
-          K(PP, QQ) = K(PP, QQ) + k_ele(aa, bb);
-        else
-          % modify F with the boundary data
-          % here we do nothing because the boundary data g is zero or
-          % homogeneous
-        end
-      end  
+      end
+
     end
   end
+  
 end
 
 % solve the stiffness matrix
