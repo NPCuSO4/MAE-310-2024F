@@ -11,7 +11,7 @@ D  = E/(1 - nu^2) * D;
 exact_u = @(x,y) -x^2;
 exact_v = @(x,y) 0;
 
-f = @(x, y) [2*E/(nu^2-1); 0]; % fx and fy
+f = @(x, y) [2*E/(nu^2-1); 0;]; % fx and fy
 
 % quadrature rule
 n_int_xi  = 3;
@@ -120,7 +120,7 @@ for ee = 1 : n_el
       for ii = 1 : 2
           pp = 2*(aa-1)+ii;
           tmp = f(x_l, y_l);
-          f_ele(pp) = f_ele(pp) + weight(ll) * tmp(ii) * Na;
+          f_ele(pp) = f_ele(pp) + weight(ll) * tmp(ii) * Na * detJ;
 
           for bb = 1 : n_en
             Nb = Quad(bb, xi(ll), eta(ll));
@@ -133,7 +133,7 @@ for ee = 1 : n_el
             ed = [1,0; 0,1;];
             for jj = 1 : 2
                qq = 2*(bb-1)+jj;
-               k_ele(pp, qq) = k_ele(pp, qq) + weight(ll) * ed(ii, :) * Ba * D * Bb * ed(:, jj);
+               k_ele(pp, qq) = k_ele(pp, qq) + weight(ll) * ed(ii, :) * Ba * D * Bb * ed(:, jj) * detJ;
             end
          
           end % end of bb loop
