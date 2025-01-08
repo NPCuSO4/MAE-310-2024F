@@ -10,12 +10,15 @@ problem_type = 0; % 0 for plane stress / 1 for plane strain
 
 n_int_xi  = 3; % quadrature points
 n_int_eta = 3;
+n_int_l  = 3; % quadrature points for liner edge
 
 analy_u = @(x,y) [-x^2; % analytical u solution
                   0;];  % analytical v solution
 
-f = @(x, y) [2*E/(nu^2-1);  % fx
-             0;];           % fy
+%f = @(x, y) [2*E/(nu^2-1);  % fx
+%             0;];           % fy
+f = @(x, y) [0;     % fx
+             0;];   % fy
 
 % Init
 D  = [1,  nu, 0;
@@ -31,6 +34,7 @@ end
 
 n_int = n_int_xi * n_int_eta;
 [xi, eta, weight] = Gauss2D(n_int_xi, n_int_eta);
+[xl, weight_l] = Gauss(n_int_l, -1, 1);
 
 
 % Read the mesh (IEN)
@@ -79,7 +83,11 @@ n_int = n_int_xi * n_int_eta;
     % Complicated to read .msh
     % Replace it with manually generated mesh instead
     % ID array
-    ID = zeros(n_np,2);
+    ID = zeros(n_np, 2);
+    g = zeros(n_np, 2);
+    h = zeros(n_np, 2);
+    node_type = zeros(n_np, 1); % 0 for interior nodes / 1 for Dirichlet / 2 for Neumann
+
     counter = 0;
     for ny = 2 : n_np_y - 1
         for nx = 2 : n_np_x - 1
@@ -90,9 +98,16 @@ n_int = n_int_xi * n_int_eta;
         end
     end
     for nx = 2 : n_np_x - 1
-        counter = counter + 2;
-        ID(nx,1) = counter - 1;
-        ID((n_np_y-1)*n_np_x + nx,1) = counter;
+        %counter = counter + 2;
+        %ID(nx,1) = counter - 1;
+        %ID((n_np_y-1)*n_np_x + nx,1) = counter;
+
+        %g(nx, 1) = x_coor(nx) * (x_coor(nx) - 1);
+        %g((n_np_y-1)*n_np_x + nx, 1) = -x_coor((n_np_y-1)*n_np_x + nx) * (x_coor(nx) - 1);
+
+        node_type(nx) = 2;
+        node_type((n_np_y-1)*n_np_x + nx) = 2;
+        h(nx, 2) = 10;
     end
     n_eq = counter;
     
@@ -165,6 +180,54 @@ for ee = 1 : n_el
         
     end % end of quadrature loop
 
+    for ii = 1 : n_en
+        if (node_type(IEN(ee, ii)) == 2) && (node_type(IEN(ee, mod(ii, n_en)+1)) == 2)
+            switch ii
+                case 1
+                    xi_l = xl;
+                    eta_l = ones(1, n_int_l);
+                case 2
+                    xi_l = -1 * ones(1, n_int_l);
+                    eta_l = xl;
+                case 3
+                    xi_l = xl;
+                    eta_l = -1 * ones(1, n_int_l);
+                case 4
+                    xi_l = ones(1, n_int_l);
+                    eta_l = xl;
+            end
+            for ll = 1 : n_int_l
+                x_l = 0.0; y_l = 0.0;
+                dx_dxi = 0.0; dx_deta = 0.0;
+                dy_dxi = 0.0; dy_deta = 0.0;
+                for aa = 1 : n_en
+                    x_l = x_l + x_ele(aa) * Quad(aa, xi_l(ll), eta_l(ll));
+                    y_l = y_l + y_ele(aa) * Quad(aa, xi_l(ll), eta_l(ll));    
+                    [Na_xi, Na_eta] = Quad_grad(aa, xi_l(ll), eta_l(ll));
+                    dx_dxi  = dx_dxi  + x_ele(aa) * Na_xi;
+                    dx_deta = dx_deta + x_ele(aa) * Na_eta;
+                    dy_dxi  = dy_dxi  + y_ele(aa) * Na_xi;
+                    dy_deta = dy_deta + y_ele(aa) * Na_eta;
+                end
+            
+                detJ = dx_dxi * dy_deta - dx_deta * dy_dxi;
+                
+                for aa = 1 : n_en
+                    Na = Quad(aa, xi_l(ll), eta_l(ll));
+                    [Na_xi, Na_eta] = Quad_grad(aa, xi_l(ll), eta_l(ll));
+                    Na_x = (Na_xi * dy_deta - Na_eta * dy_dxi) / detJ;
+                    Na_y = (-Na_xi * dx_deta + Na_eta * dx_dxi) / detJ;
+                  
+                    for jj = 1 : 2
+                        pp = 2*(aa-1)+jj;
+                        f_ele(pp) = f_ele(pp) + weight_l(ll) * h(IEN(ee, ii), jj) * Na * detJ;
+                    end
+                end % end of aa loop
+                
+            end % end of quadrature loop
+        end
+    end
+
     for aa = 1 : n_en
         for ii = 1 : 2
             pp = 2*(aa-1)+ii;
@@ -181,9 +244,7 @@ for ee = 1 : n_el
                     if QQ > 0
                         K(PP, QQ) = K(PP, QQ) + k_ele(pp, qq);
                     else
-                    % modify F with the boundary data
-                    % here we do nothing because the boundary data g is zero or
-                    % homogeneous
+                        F(PP) = F(PP) - g(IEN(ee, bb), jj) * k_ele(pp, qq);
                     end
                 end
             end
@@ -203,7 +264,7 @@ for ii = 1 : n_np
         if index > 0
             disp(ii, jj) = dn(index);
         else
-            % modify disp with the g data. Here it does nothing because g is zero
+            disp(ii, jj) = g(ii, jj);
         end
     end
 end
