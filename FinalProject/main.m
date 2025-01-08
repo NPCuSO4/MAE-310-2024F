@@ -39,85 +39,45 @@ n_int = n_int_xi * n_int_eta;
 
 % Read the mesh (IEN)
 
-    % Complicated to read .msh
-    % Replace it with manually generated mesh instead
-    % mesh generation
-    n_en   = 4;    % number of nodes in an element
-    n_el_x = 60;               % number of elements in x-dir
-    n_el_y = 60;               % number of elements in y-dir
-    n_el   = n_el_x * n_el_y;  % total number of elements
-    
-    n_np_x = n_el_x + 1;      % number of nodal points in x-dir
-    n_np_y = n_el_y + 1;      % number of nodal points in y-dir
-    n_np   = n_np_x * n_np_y; % total number of nodal points
-    
-    x_coor = zeros(n_np, 1);
-    y_coor = x_coor;
-    
-    hx = 1.0 / n_el_x;        % mesh size in x-dir
-    hy = 1.0 / n_el_y;        % mesh size in y-dir
-    
-    % generate the nodal coordinates
-    for ny = 1 : n_np_y
-        for nx = 1 : n_np_x
-            index = (ny-1)*n_np_x + nx; % nodal index
-            x_coor(index) = (nx-1) * hx;
-            y_coor(index) = (ny-1) * hy;
-        end
-    end
-    
-    % IEN array
-    IEN = zeros(n_el, n_en);
-    for ex = 1 : n_el_x
-        for ey = 1 : n_el_y
-            ee = (ey-1) * n_el_x + ex; % element index
-            IEN(ee, 1) = (ey-1) * n_np_x + ex;
-            IEN(ee, 2) = (ey-1) * n_np_x + ex + 1;
-            IEN(ee, 3) =  ey    * n_np_x + ex + 1;
-            IEN(ee, 4) =  ey    * n_np_x + ex;
-        end
-    end
+n_en   = 4;    % number of nodes in an element
+[n_el, n_np, x_coor, y_coor, IEN] = readMsh('test.msh', n_en);
 
 % Set the boundary (ID)
 
-    % Complicated to read .msh
-    % Replace it with manually generated mesh instead
-    % ID array
-    ID = zeros(n_np, 2);
-    g = zeros(n_np, 2);
-    h = zeros(n_np, 2);
-    node_type = zeros(n_np, 1); % 0 for interior nodes / 1 for Dirichlet / 2 for Neumann
+ID = zeros(n_np, 2);
+g = zeros(n_np, 2);
+h = zeros(n_np, 2);
+node_type = zeros(n_np, 1); % 0 for interior nodes / 1 for Dirichlet / 2 for Neumann
 
-    counter = 0;
-    for ny = 2 : n_np_y - 1
-        for nx = 2 : n_np_x - 1
-            index = (ny-1)*n_np_x + nx;
+node_pos = getBoundary(n_np, x_coor, y_coor); 
+
+counter = 0;
+for ii = 1 : n_np
+    switch node_pos(ii)
+        case 0
             counter = counter + 2;
-            ID(index,1) = counter - 1;
-            ID(index,2) = counter;
-        end
+            ID(ii,1) = counter - 1;
+            ID(ii,2) = counter;
+        case 1
+            node_type(ii) = 1;
+        case 2
+            node_type(ii) = 1;
+        case 3
+            node_type(ii) = 2;
+            h(ii, 2) = 10;
+        case 4
+            node_type(ii) = 2;
     end
-    for nx = 2 : n_np_x - 1
-        %counter = counter + 2;
-        %ID(nx,1) = counter - 1;
-        %ID((n_np_y-1)*n_np_x + nx,1) = counter;
-
-        %g(nx, 1) = x_coor(nx) * (x_coor(nx) - 1);
-        %g((n_np_y-1)*n_np_x + nx, 1) = -x_coor((n_np_y-1)*n_np_x + nx) * (x_coor(nx) - 1);
-
-        node_type(nx) = 2;
-        node_type((n_np_y-1)*n_np_x + nx) = 2;
-        h(nx, 2) = 10;
-    end
-    n_eq = counter;
+end
+n_eq = counter;
     
-    LM = zeros(2, n_el, n_en);
-    for i = 1 : n_el
-        for j  = 1 : n_en
-            LM(1, i, j) = ID(IEN(i, j), 1);
-            LM(2, i, j) = ID(IEN(i, j), 2);
-        end
+LM = zeros(2, n_el, n_en);
+for i = 1 : n_el
+    for j  = 1 : n_en
+        LM(1, i, j) = ID(IEN(i, j), 1);
+        LM(2, i, j) = ID(IEN(i, j), 2);
     end
+end
 
 
 % Assemble K & F
@@ -269,12 +229,10 @@ for ii = 1 : n_np
     end
 end
 
-save("HEAT", "disp", "n_el_x", "n_el_y");
-
 % Process stress & strain
 
 % Plots
 
-plotVector(n_el_x, n_el_y, disp);
+getPlots(x_coor, y_coor, disp);
 
 % Error terms
