@@ -1,10 +1,10 @@
-function getPlots(x_coor, y_coor, disp)
+function getPlots(sam_x, sam_y, sam_u, sam_strain, sam_stress)
 
 figure;
-quiver(x_coor, y_coor, disp(:, 1), disp(:, 2), 'AutoScale', 'on', 'AutoScaleFactor', 1.5);
+quiver(sam_x, sam_y, sam_u(:, 1), sam_u(:, 2), 'AutoScale', 'on', 'AutoScaleFactor', 1.5);
 
 figure;
-scatter(x_coor, y_coor, 100, disp(:, 2), 'filled');
+scatter(sam_x, sam_y, 100, sam_u(:, 1), 'filled');
 colorbar;
 
 end

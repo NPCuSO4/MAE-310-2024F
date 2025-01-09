@@ -1,7 +1,7 @@
 clear all;
 close all;
 clc;
-addpath('Pre\','Post\','Solver\');
+addpath('Pre\','Post\','Math\');
 % Set up the problem (para & boundary etc.)
 E = 1e9;
 nu = 0.3;
@@ -11,14 +11,20 @@ problem_type = 0; % 0 for plane stress / 1 for plane strain
 n_int_xi  = 3; % quadrature points
 n_int_eta = 3;
 n_int_l  = 3; % quadrature points for liner edge
+n_E_xi  = 3; % quadrature points for error term
+n_E_eta = 3;
 
-analy_u = @(x,y) [-x^2; % analytical u solution
-                  0;];  % analytical v solution
+analy_u = @(x,y) [x^2-1;    % analytical u solution
+                  0;];      % analytical v solution
+analy_du = @(x,y) [2*x;     % du/dx
+                  0;        % du/dy
+                  0;        % dv/dx
+                  0;];      % dv/dy
 
-%f = @(x, y) [2*E/(nu^2-1);  % fx
-%             0;];           % fy
-f = @(x, y) [0;     % fx
-             0;];   % fy
+f = @(x, y) [2*E/(nu^2-1);  % fx
+             0;];           % fy
+%f = @(x, y) [0;     % fx
+%             0;];   % fy
 
 % Init
 D  = [1,  nu, 0;
@@ -64,9 +70,13 @@ for ii = 1 : n_np
             node_type(ii) = 1;
         case 3
             node_type(ii) = 2;
-            h(ii, 2) = 10;
+            %h(ii, 2) = 10;
+            counter = counter + 1;
+            ID(ii,1) = counter;
         case 4
             node_type(ii) = 2;
+            counter = counter + 1;
+            ID(ii,1) = counter;
     end
 end
 n_eq = counter;
@@ -231,8 +241,19 @@ end
 
 % Process stress & strain
 
+n_sam = 3; sam_xi = zeros(1, n_sam);
+for ii = 1 : n_sam
+    sam_xi(ii) = 2*ii/n_sam - 1/n_sam -1;
+end
+sam_eta = sam_xi;
+[sam_x, sam_y, sam_u, sam_strain, sam_stress] = getSample(n_en, n_el, D, x_coor, y_coor, IEN, disp, n_sam, sam_xi, sam_eta);
+
 % Plots
 
-getPlots(x_coor, y_coor, disp);
+getPlots(sam_x, sam_y, sam_u, sam_strain, sam_stress);
 
 % Error terms
+
+[E_L2, E_H1] = calcError(n_en, n_el, x_coor, y_coor, IEN, analy_u, analy_du, disp, n_E_xi, n_E_eta);
+E_L2
+E_H1
