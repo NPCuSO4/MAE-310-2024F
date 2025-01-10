@@ -41,7 +41,6 @@ for ee = 1 : n_el
         H1_top = H1_top + weight(ll) * (du_deta(2)/dy_deta - analy_dut(4))^2 * detJ;
         H1_bot = H1_bot + weight(ll) * (analy_dut(1)^2 + analy_dut(2)^2) * detJ;
         H1_bot = H1_bot + weight(ll) * (analy_dut(3)^2 + analy_dut(4)^2) * detJ;
-
     end
 end
 
