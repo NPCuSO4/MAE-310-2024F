@@ -18,17 +18,30 @@ n_int_l   = 3;  % quadrature points for liner edge
 n_E_xi    = 3;  % quadrature points for error term
 n_E_eta   = 3;
 
-n_sam = 5; % number of sampling points
+n_sam = 3; % number of sampling points for each dimension of each element
 
-analy_u = @(x,y) [0;    % analytical u solution
-                  0;];  % analytical v solution
-analy_du = @(x,y) [0;        % du/dx
+analy_u = @(x,y)  [x^2-1;    % analytical u solution
+                  0;];       % analytical v solution
+analy_du = @(x,y) [2*x;      % du/dx
                    0;        % du/dy
                    0;        % dv/dx
                    0;];      % dv/dy
 
-f = @(x, y) [0;     % fx
+f = @(x, y) [2*E/(nu^2-1);     % fx
              0;];   % fy
+
+%T = 1e4;
+% stress boundary condition
+%sigma = @(x, y) [T*0.5*(1 + 0.3^2/((x+1)^2+(y+1)^2)^2*((y+1)^2-(x+1)^2) ...
+%                    + 3*0.3^4/((x+1)^2+(y+1)^2)^4*(x+1)^2*(y+1)^2);
+%                 T*0.5*(1 + 0.3^2/((x+1)^2+(y+1)^2)^2*((x+1)^2-(y+1)^2) ...
+%                    + 3*0.3^4/((x+1)^2+(y+1)^2)^4*(x+1)^2*(y+1)^2);
+%                 T*(-0.5)*(0.3^2/((x+1)^2+(y+1)^2)^2*(x+1)*(y+1) ...
+%                    + (1+2*0.3^2/((x+1)^2+(y+1)^2)-3*0.3^4/((x+1)^2+(y+1)^2)^2)/((x+1)^2+(y+1)^2)*((x+1)^2-(y+1)^2));];
+
+sigma = @(x, y) [0;
+                 0;
+                 0;];
 
 % Init
 D  = [1,  nu, 0;
@@ -42,54 +55,46 @@ if problem_type == 1
     D  = E/(1 + nu)/(1 - 2*nu) * D;
 end
 
-n_int = n_int_xi * n_int_eta;
+n_int = n_int_xi * n_int_eta;   % gauss intergral points
 [xi, eta, weight] = Gauss2D(n_int_xi, n_int_eta);
 [xl, weight_l] = Gauss(n_int_l, -1, 1);
 
 % Read the mesh (IEN)
 
-[n_el, n_np, x_coor, y_coor, IEN] = readMsh('32.msh', n_en);
+[n_el, n_np, x_coor, y_coor, IEN] = readMsh('square.msh', n_en);
 
 % Set the boundary (ID)
 
 ID = zeros(n_np, 2);
 g = zeros(n_np, 2);
-h = zeros(n_np, 2);
 node_type = zeros(n_np, 1); % 0 for interior nodes / 1 for Dirichlet / 2 for Neumann
 
-node_pos = getBoundary(n_np, x_coor, y_coor); 
+node_pos = getBoundary(n_np, x_coor, y_coor); % 0: interior / 1: left / 2: right / 3: lower
+%                                              / 4: upper / 5: arc / 6: top-right corner point
 
 counter = 0;
 for ii = 1 : n_np
     switch node_pos(ii)
-        case 0
+        case 0  % interior
             counter = counter + 2;
             ID(ii,1) = counter - 1;
             ID(ii,2) = counter;
-        case 1
+        case 1  % left
             node_type(ii) = 1;
-            counter = counter + 1;
-            ID(ii,2) = counter;
-        case 2
-            node_type(ii) = 2;
-            counter = counter + 2;
-            ID(ii,1) = counter - 1;
-            ID(ii,2) = counter;
-            h(ii, 1) = 1e10;
-        case 3
+        case 2  % right
+            node_type(ii) = 1;
+        case 3  % lower
             node_type(ii) = 1;
             counter = counter + 1;
             ID(ii,1) = counter;
-        case 4
+        case 4  % upper
             node_type(ii) = 1;
             counter = counter + 1;
             ID(ii,1) = counter;
-        case 5
+        case 5  % arc
             node_type(ii) = 0;
-            counter = counter + 2;
-            ID(ii,1) = counter - 1;
-            ID(ii,2) = counter;
-            % h = 0 
+        case 6  % top-right corner point
+            node_type(ii) = 2;
     end
 end
 n_eq = counter;
@@ -142,7 +147,6 @@ for ee = 1 : n_el
                 pp = 2*(aa-1)+ii;
                 tmp = f(x_l, y_l);
                 f_ele(pp) = f_ele(pp) + weight(ll) * tmp(ii) * Na * detJ;
-                f_ele(pp) = f_ele(pp) + weight(ll) * h(IEN(ee, aa), ii) * Na * detJ;
     
                 for bb = 1 : n_en
                     Nb = Quad(bb, xi(ll), eta(ll));
@@ -164,8 +168,10 @@ for ee = 1 : n_el
         
     end % end of quadrature loop
 
-    for ii = 1 : n_en
+    for ii = 1 : n_en   % Neumann boundary condition
+        % find the boundary points
         if (node_type(IEN(ee, ii)) == 2) && (node_type(IEN(ee, mod(ii, n_en)+1)) == 2)
+            % allocate the intergration points according to the edge
             switch ii
                 case 1
                     xi_l = xl;
@@ -180,7 +186,7 @@ for ee = 1 : n_el
                     xi_l = -1 * ones(n_int_l, 1);
                     eta_l = xl;
             end
-
+            % intergrate on the edge
             for ll = 1 : n_int_l
                 x_l = 0.0; y_l = 0.0;
                 dx_dxi = 0.0; dx_deta = 0.0;
@@ -195,16 +201,17 @@ for ee = 1 : n_el
                     dy_deta = dy_deta + y_ele(aa) * Na_eta;
                 end
                 detJ = dx_dxi * dy_deta - dx_deta * dy_dxi;
-
+                
+                tmp = sigma(x_l, y_l);
                 for aa = 1 : n_en
                     Na = Quad(aa, xi_l(ll), eta_l(ll));
                     [Na_xi, Na_eta] = Quad_grad(aa, xi_l(ll), eta_l(ll));
                     Na_x = (Na_xi * dy_deta - Na_eta * dy_dxi) / detJ;
                     Na_y = (-Na_xi * dx_deta + Na_eta * dx_dxi) / detJ;
-                  
+                    
                     for jj = 1 : 2
-                        pp = 2*(aa-1)+jj;
-                        %f_ele(pp) = f_ele(pp) + weight_l(ll) * h(IEN(ee, ii),jj) * Na * detJ;
+                        pp = 2*(aa-1)+jj;    
+                        f_ele(pp) = f_ele(pp) + weight_l(ll) * (tmp(jj) + tmp(3)/2) * Na * detJ;
                     end
                 end % end of aa loop
                 
@@ -260,7 +267,7 @@ for ii = 1 : n_sam
     sam_xi(ii) = 2*ii/n_sam - 1/n_sam -1;
 end
 sam_eta = sam_xi;
-[sam_x, sam_y, sam_u, sam_strain, sam_stress] = getSample(n_en, n_el, D, x_coor, y_coor, IEN, disp, n_sam, sam_xi, sam_eta);
+[sam_x, sam_y, sam_u, sam_strain, sam_stress] = getSample(n_en, n_el, D, x_coor, y_coor, IEN, node_pos, disp, n_sam, sam_xi, sam_eta);
 
 % Plots
 
@@ -271,3 +278,12 @@ getPlots(sam_x, sam_y, sam_u, sam_strain, sam_stress);
 [E_L2, E_H1] = calcError(n_en, n_el, x_coor, y_coor, IEN, analy_u, analy_du, disp, n_E_xi, n_E_eta);
 E_L2
 E_H1
+
+%EE1 = 0;
+%EE2 = 0;
+%for ii = 1 : length(sam_x)
+%    tmp = sigma(sam_x(ii), sam_y(ii));
+%    EE1 = EE1 + (sam_stress(ii, 1) - tmp(1))^2 + (sam_stress(ii, 2) - tmp(2))^2 + (sam_stress(ii, 3) - tmp(3))^2;
+%    EE2 = EE2 + tmp(1)^2 + tmp(2)^2 + tmp(3)^2;
+%end
+%(EE1 / EE2) ^ 0.5
