@@ -66,7 +66,9 @@ n_int = n_int_xi * n_int_eta;   % gauss intergral points
 % Set the boundary (ID)
 
 ID = zeros(n_np, 2);
-g = zeros(n_np, 2);
+
+g = zeros(n_np, 2); % displacement boundary condition
+
 node_type = zeros(n_np, 1); % 0 for interior nodes / 1 for Dirichlet / 2 for Neumann
 
 node_pos = getBoundary(n_np, x_coor, y_coor); % 0: interior / 1: left / 2: right / 3: lower
